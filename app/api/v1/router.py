@@ -1,16 +1,26 @@
 import logging
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.auth import get_authenticated_company_id
+from app.api.v1.risk_routes import router as risk_router
+from app.api.v1.transaction_routes import router as transaction_router
 from app.infrastructure.database.session import async_session_factory
 from app.infrastructure.redis.client import get_redis
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+business_router = APIRouter(
+    prefix="/api/v1",
+    dependencies=[Depends(get_authenticated_company_id)],
+)
+business_router.include_router(transaction_router)
+business_router.include_router(risk_router)
+router.include_router(business_router)
 
 
 @router.get("/health", tags=["health"])

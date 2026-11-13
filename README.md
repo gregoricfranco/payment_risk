@@ -37,9 +37,87 @@ PostgreSQL e Redis usam volumes nomeados, portanto os dados sobrevivem a `stop`,
 
 - Health: <http://localhost:8000/health>
 - Readiness de PostgreSQL e Redis: <http://localhost:8000/ready>
+- Registro autenticado de transação: `POST /api/v1/transactions`
 - Swagger: <http://localhost:8000/docs>
 
 O código em `app/` é montado no container e o Uvicorn executa com reload automático.
+
+### Autenticação e registro de transação
+
+Todos os endpoints sob `/api/v1` exigem uma chave no header `X-API-Key`. Somente o hash SHA-256 da
+chave é armazenado em `api_keys.key_hash`; a chave também precisa pertencer a uma empresa ativa e
+não pode estar revogada ou expirada. `/health`, `/ready` e a documentação permanecem públicos.
+
+```bash
+curl --request POST http://localhost:8000/api/v1/transactions \
+  --header 'Content-Type: application/json' \
+  --header 'X-API-Key: sua-chave' \
+  --data '{
+    "external_id": "txn_100001",
+    "customer_id": "customer_123",
+    "amount": "250.00",
+    "currency": "BRL",
+    "payment_method": "credit_card",
+    "status": "pending",
+    "ip_address": "189.45.120.10",
+    "device_id": "device_abc123",
+    "card_bin": "411111",
+    "card_last_four": "1234"
+  }'
+```
+
+Uma criação válida retorna `201`. Chaves ausentes ou inválidas retornam `401`; repetir o mesmo
+`external_id` para a mesma empresa retorna `409`.
+
+Para testar apenas a autenticação:
+
+```bash
+curl http://localhost:8000/api/v1/risk/test \
+  --header 'X-API-Key: sua-chave'
+```
+
+### Cadastro manual de API Key
+
+A forma recomendada é usar o comando administrativo do container. Consulte primeiro o UUID da
+empresa e então gere a credencial:
+
+```bash
+docker compose exec postgres psql -U payment_risk -d payment_risk \
+  -c "SELECT id, name, is_active FROM companies;"
+
+docker compose exec api python -m app.cli.create_api_key \
+  --company-id UUID_DA_EMPRESA \
+  --name "Postman local"
+```
+
+O comando salva somente o hash SHA-256 no banco e mostra a chave original uma única vez. Copie a
+chave exibida e guarde-a em local seguro.
+
+Se precisar gerar e inserir os valores manualmente, use o procedimento abaixo.
+
+Gere uma chave e seu hash localmente. A saída `API_KEY` é mostrada uma única vez e deve ser
+guardada em local seguro; somente `KEY_HASH` e `KEY_PREFIX` vão para o banco.
+
+```bash
+python3 -c "import hashlib, secrets; key='prk_'+secrets.token_urlsafe(32); print('API_KEY='+key); print('KEY_PREFIX='+key[:16]); print('KEY_HASH='+hashlib.sha256(key.encode()).hexdigest())"
+```
+
+Cadastre os valores gerados para uma empresa existente, substituindo os placeholders:
+
+```bash
+docker compose exec postgres psql -U payment_risk -d payment_risk -c "
+INSERT INTO api_keys (id, company_id, name, key_prefix, key_hash)
+VALUES (
+  gen_random_uuid(),
+  'UUID_DA_EMPRESA',
+  'Postman local',
+  'KEY_PREFIX_GERADO',
+  'KEY_HASH_GERADO'
+);"
+```
+
+No Postman, selecione a aba **Headers** e adicione `X-API-Key` com o valor completo de `API_KEY`.
+Não envie `KEY_HASH`: o serviço calcula o SHA-256 da chave recebida antes de consultar o banco.
 
 ## Banco e migrations
 

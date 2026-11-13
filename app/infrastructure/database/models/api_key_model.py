@@ -41,6 +41,7 @@ class ApiKeyModel(Base):
 
     key_hash: Mapped[str] = mapped_column(
         String(64),
+        unique=True,
         nullable=False,
     )
 
