@@ -1,8 +1,26 @@
-# Payment Risk AI
+# Payment Risk AI — Adaptive 3DS
 
-Base de um microsserviço FastAPI para futuras funcionalidades de risco de pagamentos. O projeto
-inclui health checks, conexões de infraestrutura, estrutura em camadas e persistência inicial de
-empresas, chaves de API e transações. As regras de análise de risco ainda não estão implementadas.
+Motor inteligente de autenticação adaptativa (Adaptive 3DS). O projeto analisa o comportamento
+histórico do cliente e os sinais de uma nova tentativa de pagamento para recomendar autenticação
+adicional quando identifica uma situação incomum.
+
+Em vez de exigir 3DS indiscriminadamente, o motor considera a combinação dos sinais disponíveis.
+Uma tentativa isolada pode ser legítima, mas diversos desvios simultâneos aumentam o risco e podem
+resultar na recomendação de autenticação adicional.
+
+Exemplo de mudança comportamental:
+
+| Informação | Histórico do cliente | Nova tentativa |
+| --- | --- | --- |
+| Valor | R$ 100–300 | R$ 2.500 |
+| Horário | 12h–21h | 03h |
+| Dispositivo | iPhone A | Android B |
+| Localização aproximada | Florianópolis | São Paulo |
+| Tentativas recentes | 1–2 | 8 |
+| Recusas recentes | 0 | 6 |
+
+O serviço é construído com FastAPI e Clean Architecture, utilizando PostgreSQL e Redis como base
+para a evolução das regras comportamentais e da decisão de Adaptive 3DS.
 
 ## Requisitos
 
